@@ -174,14 +174,26 @@ all_time_best_women_cleaned_bday$Born[c(4, 9, 11, 15, 21, 25)] =
 # else some date conversions returned NA
 lct <- Sys.getlocale("LC_TIME"); Sys.setlocale("LC_TIME", "C")
 
+
+# split functions
+standart_date_format_2 = function(data_table){ #todo, add row as variable
+  data_table[] = lapply(data_table, as.character)
+  # $Date[] = lapply(data_table, as.Date) # do for other dates
+  for (idx in (1:length(data_table$Date))){
+    date = as.Date(data_table$Date[idx], format("%d %B %Y"))
+    data_table$Date[idx] = toString(date)
+  }
+  return(data_table)
+}
+
 # add age at record: convert date of record into yyyy-mm-dd format and calc age.
-standart_date_format = function(data_table){
+standart_date_format = function(data_table){ #todo, add row as variable
   data_table[] = lapply(data_table, as.character)
   # $Date[] = lapply(data_table, as.Date) # do for other dates
   data_table$Age_at_record = NA
   for (idx in (1:length(data_table$Date))){
     date = as.Date(data_table$Date[idx], format("%d %B %Y"))
-    data_table$Date[idx] = toString(date) # toString()
+    data_table$Date[idx] = toString(date)
     data_table$Age_at_record[idx] = 
       as.numeric(difftime(date, as.Date(data_table$Born[idx]), units = "weeks"))/52.25
   }
@@ -192,10 +204,56 @@ GOATm_standardized = standart_date_format(all_time_best_men_cleaned_bday)
 GOATf_standardized = standart_date_format(all_time_best_women_cleaned_bday)
 
 # create common table (could do so earlier) and call functions once
+GOATm_standardized$Gender = "male"
+GOATf_standardized$Gender = "female"
 
+# combine into one table, remove links column
+GOAT = subset(rbind(GOATm_standardized, GOATf_standardized), select = -Link)
 
 # analyze age at time of records
+avg_age_f = mean(filter(GOAT, Gender == "female")$Age_at_record)
+avg_age_m = mean(filter(GOAT, Gender == "male")$Age_at_record)
+avg = mean(GOAT$Age_at_record)
+stdev_f = sd(filter(GOAT, Gender == "female")$Age_at_record)
+stdev_m = sd(filter(GOAT, Gender == "male")$Age_at_record)
+stdev = sd(filter(GOAT, Gender == "female")$Age_at_record)
+
+#TODO: find nice way to present and analyze data!
+# calc likeliehood to be produced by normal distribution?
+# boxplot(filter(GOAT, Gender == "female")$Age_at_record ~ filter(GOAT, Gender == "male")$Age_at_record)
+boxplot(filter(GOAT, Gender == "female")$Age_at_record)
+boxplot(filter(GOAT, Gender == "male")$Age_at_record)
+# x = seq(0, 40, 0.5)
+# plot(x, dnorm(x, mean = avg, sd = stdev), type = "l", ylim = c(0, 0.3), ylab = "", lwd = 2, col = "red")
+
+# get birthmonth
+# install.packages("lubridate")
+library(lubridate)
+# month(as.Date(GOAT$Born[1]))
+# TODO gather tables
+
+per_age_girls_std = standart_date_format_2(per_age_girls)
+per_age_boys_std = standart_date_format_2(per_age_boys)
+
+juniors_birth_month = select(rbind(per_age_boys, per_age_girls), Athlete, Date, Age)
+juniors_birth_month = standart_date_format_2(juniors_birth_month)
+
+# set junior flag,  calc birthmonth, remove duplicates
+juniors_birth_month$Month = NA
+for (idx in (1:length(juniors_birth_month$Date))){
+  date = as.Date(juniors_birth_month$Date[idx], format("%d %B %Y"))
+  age_days = as.numeric(str_extract(strsplit(toString(juniors_birth_month$Age[idx]), ",")[[1]][2], "\\d+"))
+  juniors_birth_month$Month[idx] = month(as.Date(juniors_birth_month$Date[idx])+(365-age_days))
+}
+
+juniors_just_month = unique(select(juniors_birth_month, Athlete, Month))
+juniors_just_month$Category = "junior"
+
 # calc age of young athletes and check if there's a trend in birthmonth
+
+
+#TODO: remove intermediary dataframes (overwirte the same)
+
 # Rmarkdown and clean up names etc.
 # (maybe do the same but only for athletes from the USA (same context))
 
