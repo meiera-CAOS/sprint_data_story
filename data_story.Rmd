@@ -1,0 +1,267 @@
+---
+title: "Data story - 100 meters"
+author: "Adrian Meier"
+date: "February 7, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Choosing a starting point
+The (100 meters Wikipedia page)[https://en.wikipedia.org/wiki/100_metres] is full of data tables. A total of 17 tables rank racers in all kinds of categories. The '100 meters per age category' section caught my eye. It lists the best performances of athletes between 5 and 19 years of age. What sparked my interest is the 'Age' column. The record holders aged five are both less than two weeks away from their sixth birthday. Clearly the age has a significant impact on performance at an early age. As a first question, I want to investigate the correlation of the athletes age (within an age category) to their absolute age. 
+
+## Scraping wikipedia
+Lets begin by reading the two tables of the *100 meters per age category* section. I wrote a funtion using the rvest library to read a HTML table given the corresponding XPATH from the wiki url once. The table is stored locally as a csv file and loaded loacally if available. Then I call the function with the arguments for the tables of interest.
+```{r global, echo=FALSE, message=FALSE}
+# install.packages("rvest")
+# install.packages("dplyr")
+# install.packages("stringr")
+library(rvest)
+library(dplyr)
+library(stringr)
+url = "https://en.wikipedia.org/wiki/100_metres#100_metres_per_age_category"
+```
+
+```{r load_data, echo=TRUE, message = FALSE}
+# load data from file directly if already scraped data and scrape and write csv file otherwise
+load_data = function(data_name, data_xpath){
+  data_filepath = paste("~/sprint/data/", data_name, ".csv", sep = "")
+  # check if data file exists
+  if (!file.exists(data_filepath)){
+    # access data at url by XPATH
+    loaded_data = url %>% 
+      read_html() %>% 
+      html_node(xpath = data_xpath) %>% 
+      html_table(fill = TRUE)
+    # export to csv
+    write.csv(loaded_data, file=data_filepath, row.names = FALSE)
+  } else {
+    loaded_data = read.csv(data_filepath, check.names = FALSE)
+  }
+  return(loaded_data)
+}
+```
+
+```{r load_data call, echo=FALSE, message=FALSE}
+PAB_name = "per_age_boys"
+PAB_xpath = "/html/body/div[3]/div[3]/div[5]/div[1]/div[9]/div[11]/table/tbody/tr/td[1]/table"
+
+PAG_name = "per_age_girls"
+PAG_xpath = "/html/body/div[3]/div[3]/div[5]/div[1]/div[9]/div[11]/table/tbody/tr/td[2]/table"
+
+per_age_boys = load_data(PAB_name, PAB_xpath)
+per_age_girls = load_data(PAG_name, PAG_xpath)
+glimpse(per_age_girls)
+```
+
+Next I do some post processing on the tables. To prevent ambiguity I rename the first 'Age' column to 'Age_category'. Further I drop columns that I won't need, add a gender flag and then combine the data in a single table.
+
+```{r per_age postprocessing, echo=FALSE, message=FALSE}
+# rename ambiguous column
+colnames(per_age_boys)[1] = "Age_category"
+colnames(per_age_girls)[1] = "Age_category"
+
+# construct one table with age categories, containing boys and girls ages at time of the corresponding records
+PAB_table = select(per_age_boys, Age_category, Athlete, Age)
+PAB_table$Gender = "male"
+PAG_table = select(per_age_girls, Age_category, Athlete, Age)
+PAG_table$Gender = "female"
+
+# combine into one table
+age_category_table = rbind(PAB_table, PAG_table)
+glimpse(age_category_table)
+```
+Now I add a column which will store the days until the athletes birthday. This shows how many (or few) days were remaining for the athlete to compete in this age category (and potentially get a chance to improve their time). To calculate the remaining days, I have to compare the age (given as "X years, Y days") with the age category. Maybe there are neat funcions which can handle this data format... I solved it with some stringr regex magic.
+```{r calc_days_remaining, echo=FALSE, message=FALSE}
+age_category_table$Days_remaining = NA
+# calculate remaining days where athlete is eligible to run in the age category where they set the corresponding record
+for (idx in 1:length(age_category_table$Age_category)){
+  age_days = as.numeric(str_extract(strsplit(toString(age_category_table$Age[idx]), ",")[[1]][2], "\\d+"))
+  age_category_table$Days_remaining[idx] = 365 - age_days
+  age_years = as.numeric(str_extract(strsplit(toString(age_category_table$Age[idx]), ",")[[1]][1], "\\d+"))
+  # if more than a year younger than age category
+  if (age_years < age_category_table$Age_category[idx]){
+    years_diff = age_category_table$Age_category[idx] - age_years
+    age_category_table$Days_remaining[idx] = age_category_table$Days_remaining[idx] + 365*(years_diff)
+  }
+}
+```
+Having done that, it's time for the first plot!
+```{r first age category plot, echo=FALSE, message=TRUE}
+# graphic representing the time and age, with anomaly explanaition.
+age_category_table$Gender = factor(age_category_table$Gender)
+plot(age_category_table$Age_category, age_category_table$Days_remaining, 
+     col=age_category_table$Gender,
+     pch = 17,
+     xlab = "Age category",
+     ylab = "Days remaining",
+     main = "Age category records set with #days remaining within category")
+legend("topleft", legend=levels(age_category_table$Gender), col=c(1:2), pch = 17)
+```
+Surprisingly there's one outlier: Payton Payne's record set at age 11 improved all previous times run by girls age 12. A closer look shows that Payton holds records in five categories.
+```{r outlier, echo=FALSE, message=FALSE}
+outlier_per_age_girls = select(filter(per_age_girls, Athlete == "Payton Payne"), Age_category, Athlete, Date, Age)
+print(outlier_per_age_girls)
+```
+Payton set her last record 28 July 2019. I assume in 2020 there were close to no competitions due to covid. I think it's fair to assume she would have further improved the age category 12 record had she gotten the chance. Therefore I decided to remove the outlier and to not count her outstanding performance in the age 12 categories.
+
+Additionally I plot a half year horizontal line in purple and a least squares linear regression line in blue:
+```{r removing outlier and final age category plot, echo=FALSE, message=FALSE}
+# remove outlier and analyze (fit, avg,...) add half year avg. line
+outlier_row = which(age_category_table$Days_remaining > 365)
+age_category_table = age_category_table[-c(outlier_row),]
+
+# graphic representing the time and age, with anomaly explanaition.
+age_category_table$Gender = factor(age_category_table$Gender)
+plot(age_category_table$Age_category, age_category_table$Days_remaining, 
+     col=age_category_table$Gender,
+     pch = 17,
+     xlab = "Age category",
+     ylab = "Days remaining",
+     main = "Enhanced age category plot", 
+     ylim = c(0, 365))
+legend("topleft", legend=levels(age_category_table$Gender), col=c(1:2), pch = 17)
+
+# half a year line
+abline(h = 365/2, col = "purple")
+# linear regression
+lr_age_category = lm(Days_remaining ~ Age_category, data = age_category_table) 
+abline(a = coef(lr_age_category)[1], b = coef(lr_age_category)[2], col="blue")
+```
+The linear regression (blue) shows nicely what one expects: While age has a big impact on the performance of young athletes, the impact is lost over time. It seems that young athletes improve their performance in close relation to getting older, while from maybe 16 onwards the age factor appears to lose it's weight.
+
+## Age and adult athletes best performance
+This promped the follow up question: At what age did the all-time fastest athletes run their record times?
+
+To answer this question I load the tables from the wikipedia page sections 'All-time top 25' for men and women. I make sure to remove duplicate entries of record holders who ran their record time more than once.
+
+```{r load and postprocess ATB, echo=FALSE, message=FALSE}
+# xpath to all time top 25 athletes.
+ATBW_name = "all_time_best_women"
+ATBW_xpath = "/html/body/div[3]/div[3]/div[5]/div[1]/div[9]/table[2]"
+
+ATBM_name = "all_time_best_men"
+ATBM_xpath = "/html/body/div[3]/div[3]/div[5]/div[1]/div[9]/table[1]"
+
+all_time_best_women = load_data(ATBW_name, ATBW_xpath)
+all_time_best_men = load_data(ATBM_name, ATBM_xpath)
+
+# clean tables - keeping every athlete exactly once.
+all_time_best_women = select(all_time_best_women[-c(26,27),], Athlete, Date)
+all_time_best_men = select(filter(all_time_best_men, !grepl("\\d", all_time_best_men$Athlete)), Athlete, Date)
+```
+To my disappointment, while the date when the record was run is present in the table, the age of the athlete's is missing. I decide to collect the links to the athlete's personal wikipedia page, to then extract the age information from there. I use the following functions to first collect all links. This includes links to the cities where they competed and references. The second function then matches the athletes with their link based on their first names.
+```{r collect href, echo=TRUE, message=FALSE}
+# all href in table with tableNr
+hrefs_in_table = function(tableNr){
+  links = url %>%
+    read_html() %>%
+    html_nodes('table.wikitable') %>%
+    .[[tableNr]] %>%
+    html_nodes('a') %>%
+    html_attr('href') %>%
+    paste0('https://en.wikipedia.org', .)
+  (unique(links)) # remove duplicate entries
+}
+
+# add links column and match links to athlete
+add_athlete_href = function(data_table, links){
+  data_table$Link = NA
+  for (idx in (1:length(data_table$Athlete))){
+    athlete = data_table$Athlete[idx]
+    name = strsplit(toString(athlete), " ")[[1]][1]
+    matching_link = links[grep(name, links)]
+    if(identical(matching_link, character(0))){next}
+    data_table$Link[idx] = links[grep(name, links)]
+  }
+  return(data_table)
+}
+```
+Sha'Carri Richardson's wiki link does not match the pattern, I add it explicitly. The tables format now looks like this:
+```{r call href collecting functions, echo=FALSE, message=FALSE, warning=FALSE}
+ATB_men_links = hrefs_in_table(2)
+ATB_women_links = hrefs_in_table(3)
+all_time_best_men = add_athlete_href(all_time_best_men, ATB_men_links)
+all_time_best_women = add_athlete_href(all_time_best_women, ATB_women_links)
+
+# one link didn't match pattern - insert missing
+missing_link = which(all_time_best_women$Athlete == "Sha'Carri Richardson")
+all_time_best_women$Link[missing_link] = "https://en.wikipedia.org/wiki/Sha%27Carri_Richardson"
+glimpse(all_time_best_men)
+```
+Now lets collect the birthdays from their personal page. I take advantage of the typical infobox that's located on the top right of most wiki pages. However six of the entries aren't caught in the pattern (for various reasons) - I insert them in a postprocessing step.
+```{r get birthdays, echo=TRUE, message=FALSE}
+# web scrawl for birthdays to be able to compute age at record
+add_athlete_birthday = function(data_table){
+  data_table$Born = NA
+  for (idx in (1:length(data_table$Athlete))){
+    pg = read_html(data_table$Link[idx])
+    info_box <- html_nodes(pg, xpath="//table[@class = 'infobox vcard']")
+    bday_node <- html_nodes(info_box, xpath = "//span[@class = 'bday']")
+    bday = html_text(bday_node)[1]
+    data_table$Born[idx] = bday
+  }
+  return(data_table)
+}
+```
+```{r call get birthdays and postprocessing, echo=FALSE, message=FALSE}
+all_time_best_men = add_athlete_birthday(all_time_best_men)
+all_time_best_women = add_athlete_birthday(all_time_best_women)
+
+# hard-coding missing entries for female birthdates, where birthdate not accessible with the pattern
+all_time_best_women$Born[c(4, 9, 11, 15, 21, 25)] = 
+  c("1986-12-27", "1984-04-16",  "1957-04-15", "1966-03-27", "1972-06-12", "1966-11-19")
+```
+Next I convert the dates when the records where run to standard date format "YYYY-MM-DD". Then I can calculate the age of the athletes at the time they ran their best race.
+```{r convert date format functions, echo=FALSE, message=FALSE, results="hide"}
+# else some date conversions returned NA
+lct <- Sys.getlocale("LC_TIME"); Sys.setlocale("LC_TIME", "C")
+
+# convert date to yyyy-mm-dd
+standardize_date = function(data_table){
+  data_table[] = lapply(data_table, as.character)
+  for (idx in (1:length(data_table$Date))){
+    date = as.Date(data_table$Date[idx], format("%d %B %Y"))
+    data_table$Date[idx] = toString(date)
+  }
+  return(data_table)
+}
+
+# add age at record: convert date of record into yyyy-mm-dd format and calc age.
+calc_age_at_record = function(data_table){
+  data_table[] = lapply(data_table, as.character)
+  data_table$Age_at_record = NA
+  for (idx in (1:length(data_table$Date))){
+    date = as.Date(data_table$Date[idx], format("%d %B %Y"))
+    data_table$Date[idx] = toString(date)
+    data_table$Age_at_record[idx] = 
+      as.numeric(difftime(date, as.Date(data_table$Born[idx]), units = "weeks"))/52.25
+  }
+  return(data_table)
+}
+
+all_time_best_men = calc_age_at_record(all_time_best_men)
+all_time_best_women = calc_age_at_record(all_time_best_women)
+```
+Bringind the two tables together we can analyse the data. The overall mean age at peak performance of the top 25 women and men amounts to 25.8 years. The athletes gender appears to have no significant influence on the age the athletes set their records.
+```{r GOAT table, echo=FALSE, message=FALSE}
+# create common table (could do so earlier) and call functions once
+all_time_best_men$Gender = "male"
+all_time_best_women$Gender = "female"
+
+# combine into one table, remove links column
+GOAT = subset(rbind(all_time_best_men, all_time_best_women), select = -Link)
+
+# analyze age at time of records
+avg_age_f = mean(filter(GOAT, Gender == "female")$Age_at_record)
+avg_age_m = mean(filter(GOAT, Gender == "male")$Age_at_record)
+avg = mean(GOAT$Age_at_record)
+stdev_f = sd(filter(GOAT, Gender == "female")$Age_at_record)
+stdev_m = sd(filter(GOAT, Gender == "male")$Age_at_record)
+stdev = sd(filter(GOAT, Gender == "female")$Age_at_record)
+```
+```{r box plotts, echo=FALE, message=FALSE}
+
+```

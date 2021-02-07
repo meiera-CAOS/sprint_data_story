@@ -2,9 +2,7 @@
 library(rvest)
 
 url = "https://en.wikipedia.org/wiki/100_metres#100_metres_per_age_category"
-# url2 = "html(https://en.wikipedia.org/wiki/100_metres#100_metres_per_age_category)"
 
-# TODO: generalize for different types of data?
 # load data from file directly if already scraped data and scrape and write csv file otherwise
 load_data = function(data_name, data_xpath){
   data_filepath = paste("~/sprint/data/", data_name, ".csv", sep = "")
@@ -18,7 +16,7 @@ load_data = function(data_name, data_xpath){
     # export to csv
     write.csv(loaded_data, file=data_filepath, row.names = FALSE)
   } else {
-    loaded_data = read.csv(data_filepath, check.names = FALSE) # stringsAsFactors = FALSE
+    loaded_data = read.csv(data_filepath, check.names = FALSE)
   }
   return(loaded_data)
 }
@@ -45,9 +43,9 @@ age_category_days_left_girls$Gender = "female"
 
 # combine into one table
 age_category_days_left = rbind(age_category_days_left_boys, age_category_days_left_girls)
-age_category_days_left$Days_remaining = NA
 
 library(stringr)
+age_category_days_left$Days_remaining = NA
 # calculate remaining days where athlete is eligible to run in the age category where they set the corresponding record
 for (idx in 1:length(age_category_days_left$Age_category)){
   age_days = as.numeric(str_extract(strsplit(toString(age_category_days_left$Age[idx]), ",")[[1]][2], "\\d+"))
@@ -96,10 +94,6 @@ lr_age_category_DL_cleaned = lm(Days_remaining ~ Age_category, data = age_catego
 abline(h = 365/2, col = "purple")  # half a year line
 abline(a = coef(lr_age_category_DL_cleaned)[1], b = coef(lr_age_category_DL_cleaned)[2], col="blue")
 
-# state age hypothesis (with seasons and age categories)
-# is there a "best" month to be born - cutoff hypothesis. find mean and standard deviation compare to normal distrib there
-# calc birthdays of participants, make sure to count every participant only once.
-
 # best age for records men and women
 # xpath to all time top 25 athletes.
 ATBW_name = "all_time_best_women"
@@ -124,11 +118,9 @@ hrefs_in_table = function(tableNr){
     html_nodes('a') %>%
     html_attr('href') %>%
     paste0('https://en.wikipedia.org', .)
-  (unique(links)) # no more duplicates
+  (unique(links)) # remove duplicate entries
 }
 
-ATB_men_links = hrefs_in_table(2)
-ATB_women_links = hrefs_in_table(3)
 
 # add links column and match links to athlete
 add_athlete_href = function(data_table, links){
@@ -143,6 +135,8 @@ add_athlete_href = function(data_table, links){
   return(data_table)
 }
 
+ATB_men_links = hrefs_in_table(2)
+ATB_women_links = hrefs_in_table(3)
 all_time_best_men_cleaned2 = add_athlete_href(all_time_best_men_cleaned, ATB_men_links)
 all_time_best_women_cleaned2 = add_athlete_href(all_time_best_women_cleaned, ATB_women_links)
 
@@ -163,7 +157,6 @@ add_athlete_birthday = function(data_table){
   return(data_table)
 }
 
-#TODO: rename!
 all_time_best_men_cleaned_bday = add_athlete_birthday(all_time_best_men_cleaned2)
 all_time_best_women_cleaned_bday = add_athlete_birthday(all_time_best_women_cleaned2)
 
@@ -174,11 +167,9 @@ all_time_best_women_cleaned_bday$Born[c(4, 9, 11, 15, 21, 25)] =
 # else some date conversions returned NA
 lct <- Sys.getlocale("LC_TIME"); Sys.setlocale("LC_TIME", "C")
 
-
 # split functions
-standart_date_format_2 = function(data_table){ #todo, add row as variable
+standart_date_format_2 = function(data_table){
   data_table[] = lapply(data_table, as.character)
-  # $Date[] = lapply(data_table, as.Date) # do for other dates
   for (idx in (1:length(data_table$Date))){
     date = as.Date(data_table$Date[idx], format("%d %B %Y"))
     data_table$Date[idx] = toString(date)
@@ -187,9 +178,8 @@ standart_date_format_2 = function(data_table){ #todo, add row as variable
 }
 
 # add age at record: convert date of record into yyyy-mm-dd format and calc age.
-standart_date_format = function(data_table){ #todo, add row as variable
+standart_date_format = function(data_table){
   data_table[] = lapply(data_table, as.character)
-  # $Date[] = lapply(data_table, as.Date) # do for other dates
   data_table$Age_at_record = NA
   for (idx in (1:length(data_table$Date))){
     date = as.Date(data_table$Date[idx], format("%d %B %Y"))
@@ -218,20 +208,26 @@ stdev_f = sd(filter(GOAT, Gender == "female")$Age_at_record)
 stdev_m = sd(filter(GOAT, Gender == "male")$Age_at_record)
 stdev = sd(filter(GOAT, Gender == "female")$Age_at_record)
 
-#TODO: find nice way to present and analyze data!
-# calc likeliehood to be produced by normal distribution?
+
 # boxplot(filter(GOAT, Gender == "female")$Age_at_record ~ filter(GOAT, Gender == "male")$Age_at_record)
 boxplot(filter(GOAT, Gender == "female")$Age_at_record)
 boxplot(filter(GOAT, Gender == "male")$Age_at_record)
 
-# TODO: this plot style
-# # boxplots of math by prog, with jittered data points
-# ggplot(data=dat_csv, aes(x=prog, y=math)) + 
-#   geom_boxplot() +
-#   geom_jitter(width=.05)
+
+# boxplots of math by prog, with jittered data points
+# install.packages("ggplot2")
+library(ggplot2)
+
+ggplot(data=GOAT, aes(x=Gender, y=Age_at_record)) +
+  geom_boxplot() +
+  geom_jitter(width=.05)
 
 # x = seq(0, 40, 0.5)
 # plot(x, dnorm(x, mean = avg, sd = stdev), type = "l", ylim = c(0, 0.3), ylab = "", lwd = 2, col = "red")
+
+# state age hypothesis (with seasons and age categories)
+# is there a "best" month to be born - cutoff hypothesis. find mean and standard deviation compare to normal distrib there
+# calc birthdays of participants, make sure to count every participant only once.
 
 # get birthmonth
 # install.packages("lubridate")
@@ -283,9 +279,5 @@ mle_uniform = eUniform(X = just_month$Month, method = "unbiased.MLE")
 
 #TODO: remove intermediary dataframes (overwirte the same)
 
-# Rmarkdown and clean up names etc.
-# (maybe do the same but only for athletes from the USA (same context))
 
-#all_time_best_men_cleaned$Born = NA
-#all_time_best_men_cleaned$Age_at_record = NA
 
