@@ -18,7 +18,7 @@ load_data = function(data_name, data_xpath){
     # export to csv
     write.csv(loaded_data, file=data_filepath, row.names = FALSE)
   } else {
-    loaded_data = read.csv(data_filepath, check.names = FALSE)
+    loaded_data = read.csv(data_filepath, check.names = FALSE) # stringsAsFactors = FALSE
   }
   return(loaded_data)
 }
@@ -136,12 +136,8 @@ add_athlete_href = function(data_table, links){
   for (idx in (1:length(data_table$Athlete))){
     athlete = data_table$Athlete[idx]
     name = strsplit(toString(athlete), " ")[[1]][1]
-    if(name == "Sha'Carri"){
-      data_table$Link[idx] = "https://en.wikipedia.org/wiki/Sha%27Carri_Richardson"
-      next
-    } 
     matching_link = links[grep(name, links)]
-    if(is.null(matching_link)){print(athlete)}
+    if(identical(matching_link, character(0))){next}
     data_table$Link[idx] = links[grep(name, links)]
   }
   return(data_table)
@@ -150,20 +146,59 @@ add_athlete_href = function(data_table, links){
 all_time_best_men_cleaned2 = add_athlete_href(all_time_best_men_cleaned, ATB_men_links)
 all_time_best_women_cleaned2 = add_athlete_href(all_time_best_women_cleaned, ATB_women_links)
 
+# one link didn't match pattern - insert missing
+missing_link = which(all_time_best_women_cleaned2$Athlete == "Sha'Carri Richardson")
+all_time_best_women_cleaned2$Link[missing_link] = "https://en.wikipedia.org/wiki/Sha%27Carri_Richardson"
+
 # web scrawl for birthdays to be able to compute age at record
+add_athlete_birthday = function(data_table){
+  data_table$Born = NA
+  for (idx in (1:length(data_table$Athlete))){
+    pg = read_html(data_table$Link[idx])
+    info_box <- html_nodes(pg, xpath="//table[@class = 'infobox vcard']")
+    bday_node <- html_nodes(info_box, xpath = "//span[@class = 'bday']")
+    bday = html_text(bday_node)[1]
+    data_table$Born[idx] = bday
+  }
+  return(data_table)
+}
+
+#TODO: rename!
+all_time_best_men_cleaned_bday = add_athlete_birthday(all_time_best_men_cleaned2)
+all_time_best_women_cleaned_bday = add_athlete_birthday(all_time_best_women_cleaned2)
+
+# manually adding missing entries for female birthdates, where birthdate not accessible in infobox:
+all_time_best_women_cleaned_bday$Born[c(4, 9, 11, 15, 21, 25)] = 
+  c("1986-12-27", "1984-04-16",  "1957-04-15", "1966-03-27", "1972-06-12", "1966-11-19")
+
+# else some date conversions returned NA
+lct <- Sys.getlocale("LC_TIME"); Sys.setlocale("LC_TIME", "C")
+
+# add age at record: convert date of record into yyyy-mm-dd format and calc age.
+standart_date_format = function(data_table){
+  data_table[] = lapply(data_table, as.character)
+  # $Date[] = lapply(data_table, as.Date) # do for other dates
+  data_table$Age_at_record = NA
+  for (idx in (1:length(data_table$Date))){
+    date = as.Date(data_table$Date[idx], format("%d %B %Y"))
+    data_table$Date[idx] = toString(date) # toString()
+    data_table$Age_at_record[idx] = 
+      as.numeric(difftime(date, as.Date(data_table$Born[idx]), units = "weeks"))/52.25
+  }
+  return(data_table)
+}
+
+GOATm_standardized = standart_date_format(all_time_best_men_cleaned_bday)
+GOATf_standardized = standart_date_format(all_time_best_women_cleaned_bday)
+
+# create common table (could do so earlier) and call functions once
+
+
+# analyze age at time of records
+# calc age of young athletes and check if there's a trend in birthmonth
+# Rmarkdown and clean up names etc.
+# (maybe do the same but only for athletes from the USA (same context))
 
 #all_time_best_men_cleaned$Born = NA
 #all_time_best_men_cleaned$Age_at_record = NA
-
-# # all links in ATB women
-# ATB_men_links = url %>%
-#   read_html() %>%
-#   html_nodes('table.wikitable') %>%
-#   .[[3]] %>%
-#   html_nodes('a') %>%
-#   html_attr('href') %>%
-#   paste0('https://en.wikipedia.org', .)
-# TODO, generalize load function with href flag
-
-# follow href and find age.
 
