@@ -223,6 +223,13 @@ stdev = sd(filter(GOAT, Gender == "female")$Age_at_record)
 # boxplot(filter(GOAT, Gender == "female")$Age_at_record ~ filter(GOAT, Gender == "male")$Age_at_record)
 boxplot(filter(GOAT, Gender == "female")$Age_at_record)
 boxplot(filter(GOAT, Gender == "male")$Age_at_record)
+
+# TODO: this plot style
+# # boxplots of math by prog, with jittered data points
+# ggplot(data=dat_csv, aes(x=prog, y=math)) + 
+#   geom_boxplot() +
+#   geom_jitter(width=.05)
+
 # x = seq(0, 40, 0.5)
 # plot(x, dnorm(x, mean = avg, sd = stdev), type = "l", ylim = c(0, 0.3), ylab = "", lwd = 2, col = "red")
 
@@ -250,7 +257,29 @@ juniors_just_month = unique(select(juniors_birth_month, Athlete, Month))
 juniors_just_month$Category = "junior"
 
 # calc age of young athletes and check if there's a trend in birthmonth
+GOAT$Month = NA
+for (idx in (1:length(GOAT$Born))){
+  GOAT$Month[idx] = month(as.Date(GOAT$Born[idx]))
+}
+seniors_just_month = select(GOAT, Athlete, Month)
+seniors_just_month$Category = "senior"
 
+# common table
+just_month = rbind(juniors_just_month, seniors_just_month)
+
+# barplot birthmonth
+tab = table(just_month$Category, just_month$Month)
+barplot(tab, 
+        legend.text = TRUE, xlab = "Birth month", ylab = "Athletes", args.legend = list(x = "topleft"))
+
+# probability of getting this data with random birthdays
+month_avg = mean(just_month$Month) # expected 6.5
+month_var = var(just_month$Month) # expected 10.083
+# install.packages("ExtDist")
+# TODO: what is the takeaway?
+library(ExtDist)
+len = length(just_month$Month)
+mle_uniform = eUniform(X = just_month$Month, method = "unbiased.MLE")
 
 #TODO: remove intermediary dataframes (overwirte the same)
 
