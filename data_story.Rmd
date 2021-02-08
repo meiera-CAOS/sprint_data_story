@@ -2,7 +2,9 @@
 title: "Data story - 100 meters"
 author: "Adrian Meier"
 date: "February 7, 2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -90,7 +92,8 @@ for (idx in 1:length(age_category_table$Age_category)){
   }
 }
 ```
-Having done that, it's time for the first plot!
+Having done that, it's time for the first plot!  
+
 ```{r first age category plot, echo=FALSE, message=TRUE}
 # graphic representing the time and age, with anomaly explanaition.
 age_category_table$Gender = factor(age_category_table$Gender)
@@ -110,7 +113,8 @@ print(outlier_per_age_girls)
 ```
 Payton set her last record 28 July 2019. I assume in 2020 there were close to no competitions due to covid. I think it's fair to assume she would have further improved the age category 12 record had she gotten the chance. Therefore I decided to remove the outlier and to not count her outstanding performance in the age 12 categories.
 
-Additionally I plot a half year horizontal line in purple and a least squares linear regression line in blue:
+Additionally I plot a half year horizontal line in purple and a least squares linear regression line in blue:  
+
 ```{r removing outlier and final age category plot, echo=FALSE, message=FALSE}
 # remove outlier and analyze (fit, avg,...) add half year avg. line
 outlier_row = which(age_category_table$Days_remaining > 365)
@@ -249,7 +253,8 @@ calc_age_at_record = function(data_table){
 all_time_best_men = calc_age_at_record(all_time_best_men)
 all_time_best_women = calc_age_at_record(all_time_best_women)
 ```
-Bringing the two tables together we can analyse the data. The overall mean age at peak performance of the top 25 women and men amounts to 25.8 years. The athletes gender appears to have no significant influence on the age the athletes set their records.
+Bringing the two tables together we can analyse the data. The overall mean age at peak performance of the top 25 women and men amounts to 25.8 years. The athletes gender appears to have no significant influence on the age the athletes set their records.  
+
 ```{r GOAT table, echo=FALSE, message=FALSE}
 # create common table (could do so earlier) and call functions once
 all_time_best_men$Gender = "male"
@@ -314,7 +319,8 @@ seniors_just_month$Category = "senior"
 just_month = rbind(juniors_just_month, seniors_just_month)
 glimpse(just_month)
 ```
-Lets illustrate the data in a bar plot.
+Lets illustrate the data in a bar plot.  
+
 ```{r month plot, echo=FALSE, message=FALSE}
 # barplot birthmonth
 tab = table(just_month$Category, just_month$Month)
