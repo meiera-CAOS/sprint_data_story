@@ -8,12 +8,14 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+## Choice of technology
+During the first interview David mentioned that the internship project is currently based on R. Having no prior experience with R I decided to take the learning opportunity and got to work with R and RMarkdown employing the libraries: rvest, dplyr, stringr, ggplot2, lubridate and ExtDist.
 
 ## Choosing a starting point
-The (100 meters Wikipedia page)[https://en.wikipedia.org/wiki/100_metres] is full of data tables. A total of 17 tables rank racers in all kinds of categories. The '100 meters per age category' section caught my eye. It lists the best performances of athletes between 5 and 19 years of age. What sparked my interest is the 'Age' column. The record holders aged five are both less than two weeks away from their sixth birthday. Clearly the age has a significant impact on performance at an early age. As a first question, I want to investigate the correlation of the athletes age (within an age category) to their absolute age. 
+The 100 meters Wikipedia page <https://en.wikipedia.org/wiki/100_metres> is full of data tables. A total of 17 tables rank racers in all kinds of categories. The '100 meters per age category' section caught my eye. It lists the best performances of athletes between 5 and 19 years of age. What sparked my interest is the 'Age' column. The record holders aged five are both less than two weeks away from their sixth birthday. Clearly the age has a significant impact on performance at an early age. As a first question, I want to investigate the correlation of the athletes age (within an age category) to their absolute age. 
 
 ## Scraping wikipedia
-Lets begin by reading the two tables of the *100 meters per age category* section. I wrote a funtion using the rvest library to read a HTML table given the corresponding XPATH from the wiki url once. The table is stored locally as a csv file and loaded loacally if available. Then I call the function with the arguments for the tables of interest.
+Lets begin by reading the two tables of the *100 meters per age category* section. I wrote a function using the rvest library to read a HTML table given the corresponding XPATH from the wiki URL once. The table is stored locally as a csv file and loaded locally if available. Then I call the function with the arguments for the tables of interest.
 ```{r global, echo=FALSE, message=FALSE}
 # install.packages("rvest")
 # install.packages("dplyr")
@@ -73,7 +75,7 @@ PAG_table$Gender = "female"
 age_category_table = rbind(PAB_table, PAG_table)
 glimpse(age_category_table)
 ```
-Now I add a column which will store the days until the athletes birthday. This shows how many (or few) days were remaining for the athlete to compete in this age category (and potentially get a chance to improve their time). To calculate the remaining days, I have to compare the age (given as "X years, Y days") with the age category. Maybe there are neat funcions which can handle this data format... I solved it with some stringr regex magic.
+Now I add a column which will store the days until the athletes birthday. This shows how many (or few) days were remaining for the athlete to compete in this age category (and potentially get a chance to improve their time). To calculate the remaining days, I have to compare the age (given as "X years, Y days") with the age category. Maybe there are neat functions which can handle this data format... I solved it with some stringr regexp magic.
 ```{r calc_days_remaining, echo=FALSE, message=FALSE}
 age_category_table$Days_remaining = NA
 # calculate remaining days where athlete is eligible to run in the age category where they set the corresponding record
@@ -99,7 +101,8 @@ plot(age_category_table$Age_category, age_category_table$Days_remaining,
      ylab = "Days remaining",
      main = "Age category records set with #days remaining within category")
 legend("topleft", legend=levels(age_category_table$Gender), col=c(1:2), pch = 17)
-```
+```  
+
 Surprisingly there's one outlier: Payton Payne's record set at age 11 improved all previous times run by girls age 12. A closer look shows that Payton holds records in five categories.
 ```{r outlier, echo=FALSE, message=FALSE}
 outlier_per_age_girls = select(filter(per_age_girls, Athlete == "Payton Payne"), Age_category, Athlete, Date, Age)
@@ -129,13 +132,14 @@ abline(h = 365/2, col = "purple")
 # linear regression
 lr_age_category = lm(Days_remaining ~ Age_category, data = age_category_table) 
 abline(a = coef(lr_age_category)[1], b = coef(lr_age_category)[2], col="blue")
-```
-The linear regression (blue) shows nicely what one expects: While age has a big impact on the performance of young athletes, the impact is lost over time. It seems that young athletes improve their performance in close relation to getting older, while from maybe 16 onwards the age factor appears to lose it's weight.
+```  
+
+The linear regression (blue) shows nicely what one expects: While age has a big impact on the performance of young athletes, the impact is lost over time. It seems that young athletes improve their performance in close relation to getting older, while from maybe 16 onward the age factor appears to lose it's weight.
 
 ## Age and adult athletes best performance
-This promped the follow up question: At what age did the all-time fastest athletes run their record times?
+This prompted the follow up question: At what age did the all-time fastest athletes run their record times?
 
-To answer this question I load the tables from the wikipedia page sections 'All-time top 25' for men and women. I make sure to remove duplicate entries of record holders who ran their record time more than once.
+To answer this question I load the tables from the Wikipedia page sections 'All-time top 25' for men and women. I make sure to remove duplicate entries of record holders who ran their record time more than once.
 
 ```{r load and postprocess ATB, echo=FALSE, message=FALSE}
 # xpath to all time top 25 athletes.
@@ -152,7 +156,7 @@ all_time_best_men = load_data(ATBM_name, ATBM_xpath)
 all_time_best_women = select(all_time_best_women[-c(26,27),], Athlete, Date)
 all_time_best_men = select(filter(all_time_best_men, !grepl("\\d", all_time_best_men$Athlete)), Athlete, Date)
 ```
-To my disappointment, while the date when the record was run is present in the table, the age of the athlete's is missing. I decide to collect the links to the athlete's personal wikipedia page, to then extract the age information from there. I use the following functions to first collect all links. This includes links to the cities where they competed and references. The second function then matches the athletes with their link based on their first names.
+To my disappointment, while the date when the record was run is present in the table, the age of the athlete's is missing. I decide to collect the links to the athlete's personal Wikipedia page, to then extract the age information from there. I use the following functions to first collect all links. This includes links to the cities where they competed and references. The second function then matches the athletes with their link based on their first names.
 ```{r collect href, echo=TRUE, message=FALSE}
 # all href in table with tableNr
 hrefs_in_table = function(tableNr){
@@ -191,7 +195,7 @@ missing_link = which(all_time_best_women$Athlete == "Sha'Carri Richardson")
 all_time_best_women$Link[missing_link] = "https://en.wikipedia.org/wiki/Sha%27Carri_Richardson"
 glimpse(all_time_best_men)
 ```
-Now lets collect the birthdays from their personal page. I take advantage of the typical infobox that's located on the top right of most wiki pages. However six of the entries aren't caught in the pattern (for various reasons) - I insert them in a postprocessing step.
+Now lets collect the birthdays from their personal page. I take advantage of the typical info-box that's located on the top right of most wiki pages. However six of the entries aren't caught in the pattern (for various reasons) - I insert them in a post processing step.
 ```{r get birthdays, echo=TRUE, message=FALSE}
 # web scrawl for birthdays to be able to compute age at record
 add_athlete_birthday = function(data_table){
@@ -245,7 +249,7 @@ calc_age_at_record = function(data_table){
 all_time_best_men = calc_age_at_record(all_time_best_men)
 all_time_best_women = calc_age_at_record(all_time_best_women)
 ```
-Bringind the two tables together we can analyse the data. The overall mean age at peak performance of the top 25 women and men amounts to 25.8 years. The athletes gender appears to have no significant influence on the age the athletes set their records.
+Bringing the two tables together we can analyse the data. The overall mean age at peak performance of the top 25 women and men amounts to 25.8 years. The athletes gender appears to have no significant influence on the age the athletes set their records.
 ```{r GOAT table, echo=FALSE, message=FALSE}
 # create common table (could do so earlier) and call functions once
 all_time_best_men$Gender = "male"
@@ -262,6 +266,72 @@ stdev_f = sd(filter(GOAT, Gender == "female")$Age_at_record)
 stdev_m = sd(filter(GOAT, Gender == "male")$Age_at_record)
 stdev = sd(filter(GOAT, Gender == "female")$Age_at_record)
 ```
-```{r box plotts, echo=FALE, message=FALSE}
+```{r box plotts, echo=FALSE, message=FALSE, warning=FALSE}
+# boxplots of math by prog, with jittered data points
+# install.packages("ggplot2")
+library(ggplot2)
 
+ggplot(data=GOAT, aes(x=Gender, y=Age_at_record)) +
+  geom_boxplot() +
+  geom_jitter(width=.035) 
+# + theme(title = element_text("Age at record of all-time top 25 athletes by gender"), axis.title.y = element_text("Age at record"))
+```  
+
+The box plots show the data split in four quantiles (25% of the data per quantile): The middle line in the box is represented by the median, the box contains the upper and lower quantile, or the 50% of the data closest to the median. The whiskers visualize the remaining two, most extreme quantile groups. The age distribution looks quite similar between the genders. The respectable means are at 26.0 for female runners and 25.7 for males. The standard deviation for the female runners is 3.7 and for the males 3.4. My take is that I can not read a significant difference in prime age for athletic performances per genders from that data.
+
+## Best month to be born a sprinter
+This brings me to the final question I want to address: Is there a best time of the year to be born an 100 meters athlete? This question is based on a hypothesis I heard before. Namely, that kids born at the end of the year would be advantaged in sports, as they are always the oldest in their age groups. This of course assumes that the categories are drawn by the birth year and not current age. If the categories are given by the current age, as suggested by the '100 meters per age category' section, then maybe one could still find a trend if there are fixed seasons of competitions. For example such a season could be during months with mild weather for outdoors competition.
+
+To analyze this I gather the birth months for junior (per age category record holders) and senior (all time top 25) in a table. The month values of senior athletes can be directly read from the birthdays. From the juniors I calculate the birth month based on their record date and age at record.
+
+```{r best month, echo=FALSE, message=FALSE}
+# install.packages("lubridate")
+library(lubridate)
+
+juniors_birth_month = select(rbind(per_age_boys, per_age_girls), Athlete, Date, Age)
+juniors_birth_month = standardize_date(juniors_birth_month)
+
+# set junior flag,  calc birthmonth, remove duplicates
+juniors_birth_month$Month = NA
+for (idx in (1:length(juniors_birth_month$Date))){
+  date = as.Date(juniors_birth_month$Date[idx], format("%d %B %Y"))
+  age_days = as.numeric(str_extract(strsplit(toString(juniors_birth_month$Age[idx]), ",")[[1]][2], "\\d+"))
+  juniors_birth_month$Month[idx] = month(as.Date(juniors_birth_month$Date[idx])+(365-age_days))
+}
+
+juniors_just_month = unique(select(juniors_birth_month, Athlete, Month))
+juniors_just_month$Category = "junior"
+
+# calc age of young athletes and check if there's a trend in birthmonth
+GOAT$Month = NA
+for (idx in (1:length(GOAT$Born))){
+  GOAT$Month[idx] = month(as.Date(GOAT$Born[idx]))
+}
+seniors_just_month = select(GOAT, Athlete, Month)
+seniors_just_month$Category = "senior"
+
+# common table
+just_month = rbind(juniors_just_month, seniors_just_month)
+glimpse(just_month)
 ```
+Lets illustrate the data in a bar plot.
+```{r month plot, echo=FALSE, message=FALSE}
+# barplot birthmonth
+tab = table(just_month$Category, just_month$Month)
+barplot(tab, 
+        legend.text = TRUE, xlab = "Birth month", ylab = "Athletes", args.legend = list(x = "topleft"))
+
+# probability of getting this data with random birthdays
+month_avg = mean(just_month$Month) # expected 6.5
+month_var = var(just_month$Month) # expected 10.083
+```  
+
+For me it's hard to read any trend out of it by naked eye. It could follow a uniform distribution. This would indicate that the birth month has no influence on the chance to become a record setting athlete. To compare it with an uniform distribution lets compare the mean and variance to the expected mean and variance. We have a = 1, b = 12. The theoretical mean corresponds to (a+b)/2 = 6.5, the variance = ((b-a)^2)/b = 10.08333. The values we measure from the data seems to confirm a uniform distribution: mean is measured at 7.1 and variance 10.4. Given our data set of just 73 observations I believe this is comparable. I ran a maximum likelihood estimation algorithm to compare the generated estimators to a and b.
+```{r MLE, echo=TRUE, message=FALSE}
+# install.packages("ExtDist")
+library(ExtDist)
+len = length(just_month$Month)
+mle_uniform = eUniform(X = just_month$Month, method = "unbiased.MLE")
+print(mle_uniform)
+```
+From what I understand this estimated the most likely parameters a and b given the data and assuming an uniform distribution. With that I conclude that the birth months in record setting 100 meters athletes appear to follow the uniform distribution. Hence if there's a best month to be born a runner, it did not manifest in this data.

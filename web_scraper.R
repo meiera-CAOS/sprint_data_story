@@ -222,8 +222,6 @@ ggplot(data=GOAT, aes(x=Gender, y=Age_at_record)) +
   geom_boxplot() +
   geom_jitter(width=.05)
 
-# x = seq(0, 40, 0.5)
-# plot(x, dnorm(x, mean = avg, sd = stdev), type = "l", ylim = c(0, 0.3), ylab = "", lwd = 2, col = "red")
 
 # state age hypothesis (with seasons and age categories)
 # is there a "best" month to be born - cutoff hypothesis. find mean and standard deviation compare to normal distrib there
@@ -232,11 +230,9 @@ ggplot(data=GOAT, aes(x=Gender, y=Age_at_record)) +
 # get birthmonth
 # install.packages("lubridate")
 library(lubridate)
-# month(as.Date(GOAT$Born[1]))
-# TODO gather tables
 
-per_age_girls_std = standart_date_format_2(per_age_girls)
-per_age_boys_std = standart_date_format_2(per_age_boys)
+# per_age_girls_std = standart_date_format_2(per_age_girls)
+# per_age_boys_std = standart_date_format_2(per_age_boys)
 
 juniors_birth_month = select(rbind(per_age_boys, per_age_girls), Athlete, Date, Age)
 juniors_birth_month = standart_date_format_2(juniors_birth_month)
@@ -272,12 +268,9 @@ barplot(tab,
 month_avg = mean(just_month$Month) # expected 6.5
 month_var = var(just_month$Month) # expected 10.083
 # install.packages("ExtDist")
-# TODO: what is the takeaway?
 library(ExtDist)
 len = length(just_month$Month)
 mle_uniform = eUniform(X = just_month$Month, method = "unbiased.MLE")
-
-#TODO: remove intermediary dataframes (overwirte the same)
 
 
 
